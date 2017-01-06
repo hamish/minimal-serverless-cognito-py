@@ -14,8 +14,21 @@ import urlparse
 #             return int(mktime(obj.timetuple()))
 #         return json.JSONEncoder.default(self, obj)
 pp = pprint.PrettyPrinter(indent=4)
+client_cognito_idp = boto3.client('cognito-idp')
 
 def get_html(title, body, event, context):
+    CookieString = event.get('headers', {}).get('Cookie',None)
+    Username=''
+    if CookieString:
+        cookiestmp = urlparse.parse_qsl(CookieString)
+        cookies= get_dist_from_parset_vars(cookiestmp)
+        AccessToken = cookies.get('AccessToken')
+        print AccessToken
+        if AccessToken:
+            user = client_cognito_idp.get_user(
+               AccessToken=AccessToken
+            )
+            Username = user.get('Username')
     html = '''<h2>%s</h2>
     %s
     <hr />
@@ -24,26 +37,31 @@ def get_html(title, body, event, context):
     | <a href="signup">Signup</a>
     | <a href="verify">Verify</a>
     | <a href="login">Login</a>
+    | <a href="logout">Logout</a>
     | <a href="setup">Setup</a>
+    <hr />
+    Username: %s
     <hr />
     <h3>Event</h3>
     <pre>%s</pre>
     <hr />
     <h3>Context</h3>
     <pre>%s</pre>
-    ''' % (title, body, pp.pformat(event), pp.pformat(vars(context)))
+    ''' % (title, body, Username, pp.pformat(event), pp.pformat(vars(context)))
 
     return html
-def get_redirect(loc, html=""):
-  response = {
-    "statusCode": 302,
-    "headers": {
-      "Location": loc
-    },
-    "body": html
-  } 
-  return response
-def get_response(html):
+def get_redirect(loc, html="", cookie=None):
+    response = {
+        "statusCode": 302,
+        "headers": {
+            "Location": loc
+        },
+        "body": html
+    } 
+    if cookie:
+        response['headers']['Set-Cookie'] = cookie
+    return response
+def get_response(html, cookie=None):
     response = {
         "statusCode": 200,
         "headers": {
@@ -51,14 +69,19 @@ def get_response(html):
         },
         "body": html
     };
+    if cookie:
+        response['headers']['Set-Cookie'] = cookie
     return response    
 
-def get_post_vars(event):
-    params = urlparse.parse_qsl(event.get('body', ''))
+def get_dist_from_parset_vars(params):
     d = {}
     for p in params:
         d[p[0]] = p[1]
     return d
+
+def get_post_vars(event):
+    params = urlparse.parse_qsl(event.get('body', ''))
+    return get_dist_from_parset_vars(params)
 
 # {   u'AllowUnauthenticatedIdentities': True,
 #     u'DeveloperProviderName': u'currie.cognito.test',
@@ -102,6 +125,8 @@ def setup(event, context):
     html = get_html(title, body, event, context)
     return get_response(html)
 
+def logout(event, context):
+    return get_redirect("home", cookie="AccessToken=deleted; expires=Thu, 01 Jan 1970 00:00:00 GMT")
 def login(event, context):
 
     body = '''<form method="post">
@@ -114,11 +139,11 @@ def login(event, context):
     html = get_html(title, body, event, context)
     return get_response(html)
 def loginPost(event, context):
-    client = boto3.client('cognito-idp')
+    # client = boto3.client('cognito-idp')
     params = get_post_vars(event)
-    responses = []
+    cookie=None
     try:
-        response = client.admin_initiate_auth(
+        response = client_cognito_idp.admin_initiate_auth(
             UserPoolId='ap-southeast-2_zwX4onaIH',
             ClientId='6q8o5n0p7evo7uuvejl1i88v5s',
             # AuthFlow='USER_SRP_AUTH'|'REFRESH_TOKEN_AUTH'|'REFRESH_TOKEN'|'CUSTOM_AUTH'|'ADMIN_NO_SRP_AUTH',
@@ -131,12 +156,8 @@ def loginPost(event, context):
             #     'string': 'string'
             # }
         )
-        responses.append(response)
         token = response.get('AuthenticationResult',{}).get('AccessToken')
-        response_user = client.get_user(
-            AccessToken=token
-        )
-        responses.append(response_user)
+        cookie="AccessToken=%s" % token
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == 'NotAuthorizedException':
             return get_redirect("login")
@@ -157,9 +178,9 @@ def loginPost(event, context):
 
     print (response)
     title="login_post"
-    body = "login response: <pre>%s</pre>" % (pp.pformat(responses))
+    body = "login response: <pre>%s</pre>" % (pp.pformat(response))
     html = get_html(title, body, event, context)
-    return get_response(html)
+    return get_response(html, cookie=cookie)
 
 def verify(event, context):
     b3v = boto3.__version__
@@ -173,10 +194,10 @@ def verify(event, context):
     html = get_html(title, body, event, context)
     return get_response(html)
 def verifyPost(event, context):
-    client = boto3.client('cognito-idp')
+    # client = boto3.client('cognito-idp')
     params = get_post_vars(event)
 
-    response = client.confirm_sign_up(
+    response = client_cognito_idp.confirm_sign_up(
         ClientId='6q8o5n0p7evo7uuvejl1i88v5s',
         # SecretHash='string',
         Username=params.get('username'),
@@ -205,10 +226,10 @@ def signup(event, context):
 
 
 def signupPost(event, context):
-    client = boto3.client('cognito-idp')
+    # client = boto3.client('cognito-idp')
     params = get_post_vars(event)
 
-    response = client.sign_up(
+    response = client_cognito_idp.sign_up(
         ClientId='6q8o5n0p7evo7uuvejl1i88v5s',
         # SecretHash='',
         Username=params.get('username'),
