@@ -22,6 +22,7 @@ def get_html(title, body, event, context):
     <a href="home">Home</a>
     | <a href="secure">Secure</a>
     | <a href="signup">Signup</a>
+    | <a href="verify">Verify</a>
     | <a href="setup">Setup</a>
     <hr />
     <h3>Event</h3>
@@ -41,6 +42,13 @@ def get_response(html):
         "body": html
     };
     return response    
+
+def get_post_vars(event):
+    params = urlparse.parse_qsl(event.get('body', ''))
+    d = {}
+    for p in params:
+        d[p[0]] = p[1]
+    return d
 
 # {   u'AllowUnauthenticatedIdentities': True,
 #     u'DeveloperProviderName': u'currie.cognito.test',
@@ -84,6 +92,37 @@ def setup(event, context):
     html = get_html(title, body, event, context)
     return get_response(html)
 
+
+def verify(event, context):
+    b3v = boto3.__version__
+    body = '''<form method="post">
+    <input type="text" name="username" />
+    <input type="text" name="code" />
+    <input type="submit" />
+    </form>'''
+
+    title="Signup"
+    html = get_html(title, body, event, context)
+    return get_response(html)
+def verifyPost(event, context):
+    client = boto3.client('cognito-idp')
+    params = get_post_vars(event)
+
+    response = client.confirm_sign_up(
+        ClientId='6q8o5n0p7evo7uuvejl1i88v5s',
+        # SecretHash='string',
+        Username=params.get('username'),
+        ConfirmationCode=params.get('code'),
+        ForceAliasCreation=False
+    )
+
+    print (response)
+    title="verify_post"
+    body = "verify response: <pre>%s</pre>" % (pp.pformat(response))
+    html = get_html(title, body, event, context)
+    return get_response(html)
+
+
 def signup(event, context):
     b3v = boto3.__version__
     body = '''<form method="post">
@@ -96,12 +135,6 @@ def signup(event, context):
     html = get_html(title, body, event, context)
     return get_response(html)
 
-def get_post_vars(event):
-    params = urlparse.parse_qsl(event.get('body', ''))
-    d = {}
-    for p in params:
-        d[p[0]] = p[1]
-    return d
 
 def signupPost(event, context):
     client = boto3.client('cognito-idp')

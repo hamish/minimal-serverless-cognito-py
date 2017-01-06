@@ -100,6 +100,20 @@ functions:
           path: sammple/signup
           method: post
 
+  verify:
+    handler: handler.verify
+    events:
+      - http:
+          path: sammple/verify
+          method: get
+
+  verifyPost:
+    handler: handler.verifyPost
+    events:
+      - http:
+          path: sammple/verify
+          method: post
+
 #    The following are a few example events you can configure
 #    NOTE: Please make sure to change your handler code to work with those events
 #    Check the event documentation for details
