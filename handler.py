@@ -116,7 +116,7 @@ def login(event, context):
 def loginPost(event, context):
     client = boto3.client('cognito-idp')
     params = get_post_vars(event)
-
+    responses = []
     try:
         response = client.admin_initiate_auth(
             UserPoolId='ap-southeast-2_zwX4onaIH',
@@ -131,6 +131,12 @@ def loginPost(event, context):
             #     'string': 'string'
             # }
         )
+        responses.append(response)
+        token = response.get('AuthenticationResult',{}).get('AccessToken')
+        response_user = client.get_user(
+            AccessToken=token
+        )
+        responses.append(response_user)
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == 'NotAuthorizedException':
             return get_redirect("login")
@@ -150,8 +156,8 @@ def loginPost(event, context):
 
 
     print (response)
-    title="verify_post"
-    body = "verify response: <pre>%s</pre>" % (pp.pformat(response))
+    title="login_post"
+    body = "login response: <pre>%s</pre>" % (pp.pformat(responses))
     html = get_html(title, body, event, context)
     return get_response(html)
 
