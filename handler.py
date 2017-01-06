@@ -5,7 +5,7 @@ import datetime
 import pprint
 from time import mktime
 import boto3
-
+import botocore
 import urlparse
 
 # class MyEncoder(json.JSONEncoder):
@@ -23,6 +23,7 @@ def get_html(title, body, event, context):
     | <a href="secure">Secure</a>
     | <a href="signup">Signup</a>
     | <a href="verify">Verify</a>
+    | <a href="login">Login</a>
     | <a href="setup">Setup</a>
     <hr />
     <h3>Event</h3>
@@ -33,6 +34,15 @@ def get_html(title, body, event, context):
     ''' % (title, body, pp.pformat(event), pp.pformat(vars(context)))
 
     return html
+def get_redirect(loc, html=""):
+  response = {
+    "statusCode": 302,
+    "headers": {
+      "Location": loc
+    },
+    "body": html
+  } 
+  return response
 def get_response(html):
     response = {
         "statusCode": 200,
@@ -92,16 +102,68 @@ def setup(event, context):
     html = get_html(title, body, event, context)
     return get_response(html)
 
+def login(event, context):
+
+    body = '''<form method="post">
+    username: <input type="text" name="username" /><br />
+    password: <input type="password" name="password" /><br />
+    <input type="submit" />
+    </form><hr />''' 
+
+    title="login"
+    html = get_html(title, body, event, context)
+    return get_response(html)
+def loginPost(event, context):
+    client = boto3.client('cognito-idp')
+    params = get_post_vars(event)
+
+    try:
+        response = client.admin_initiate_auth(
+            UserPoolId='ap-southeast-2_zwX4onaIH',
+            ClientId='6q8o5n0p7evo7uuvejl1i88v5s',
+            # AuthFlow='USER_SRP_AUTH'|'REFRESH_TOKEN_AUTH'|'REFRESH_TOKEN'|'CUSTOM_AUTH'|'ADMIN_NO_SRP_AUTH',
+            AuthFlow='ADMIN_NO_SRP_AUTH',
+            AuthParameters={
+                'USERNAME': params.get('username'),
+                'PASSWORD': params.get('password'),
+            },
+            # ClientMetadata={
+            #     'string': 'string'
+            # }
+        )
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'NotAuthorizedException':
+            return get_redirect("login")
+        raise
+    # response = client.initiate_auth(
+    #     AuthFlow='ADMIN_NO_SRP_AUTH',
+    #     # AuthFlow='USER_SRP_AUTH'|'REFRESH_TOKEN_AUTH'|'REFRESH_TOKEN'|'CUSTOM_AUTH'|'ADMIN_NO_SRP_AUTH',
+    #     AuthParameters={
+    #         'USERNAME': params.get('username'),
+    #         'PASSWORD': params.get('password'),
+    #     },
+    #     # ClientMetadata={
+    #     #     'string': 'string'
+    #     # },
+    #     ClientId='6q8o5n0p7evo7uuvejl1i88v5s'
+    # )
+
+
+    print (response)
+    title="verify_post"
+    body = "verify response: <pre>%s</pre>" % (pp.pformat(response))
+    html = get_html(title, body, event, context)
+    return get_response(html)
 
 def verify(event, context):
     b3v = boto3.__version__
     body = '''<form method="post">
-    <input type="text" name="username" />
-    <input type="text" name="code" />
+    Username: <input type="text" name="username" /> <br />
+    Code: <input type="text" name="code" /><br />
     <input type="submit" />
     </form>'''
 
-    title="Signup"
+    title="Verify"
     html = get_html(title, body, event, context)
     return get_response(html)
 def verifyPost(event, context):
@@ -126,8 +188,8 @@ def verifyPost(event, context):
 def signup(event, context):
     b3v = boto3.__version__
     body = '''<form method="post">
-    <input type="text" name="username" />
-    <input type="password" name="password" />
+    Username: <input type="text" name="username" /> <br />
+    Password: <input type="password" name="password" /><br />
     <input type="submit" />
     </form>'''
 

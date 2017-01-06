@@ -40,6 +40,7 @@ provider:
     - Effect: "Allow"
       Action:
         - "cognito-identity:*"
+        - "cognito-idp:*"
       Resource: 
         - "*"
     - Effect: Allow
@@ -112,6 +113,20 @@ functions:
     events:
       - http:
           path: sammple/verify
+          method: post
+
+  login:
+    handler: handler.login
+    events:
+      - http:
+          path: sammple/login
+          method: get
+
+  loginPost:
+    handler: handler.loginPost
+    events:
+      - http:
+          path: sammple/login
           method: post
 
 #    The following are a few example events you can configure
