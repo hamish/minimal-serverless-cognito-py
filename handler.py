@@ -8,11 +8,6 @@ import boto3
 import botocore
 import urlparse
 
-# class MyEncoder(json.JSONEncoder):
-#     def default(self, obj):
-#         if isinstance(obj, datetime.datetime):
-#             return int(mktime(obj.timetuple()))
-#         return json.JSONEncoder.default(self, obj)
 pp = pprint.PrettyPrinter(indent=4)
 client_cognito_idp = boto3.client('cognito-idp')
 
@@ -25,10 +20,14 @@ def get_html(title, body, event, context):
         AccessToken = cookies.get('AccessToken')
         print AccessToken
         if AccessToken:
-            user = client_cognito_idp.get_user(
-               AccessToken=AccessToken
-            )
-            Username = user.get('Username')
+            try:
+                user = client_cognito_idp.get_user(
+                   AccessToken=AccessToken
+                )
+                Username = user.get('Username')
+            except botocore.exceptions.ClientError as e:
+                if e.response['Error']['Code'] != 'NotAuthorizedException':
+                    raise            
     html = '''<h2>%s</h2>
     %s
     <hr />
@@ -38,7 +37,7 @@ def get_html(title, body, event, context):
     | <a href="verify">Verify</a>
     | <a href="login">Login</a>
     | <a href="logout">Logout</a>
-    | <a href="setup">Setup</a>
+    | <a href="setup">Setup</a> (Setup dosen't work yet)
     <hr />
     Username: %s
     <hr />
@@ -216,6 +215,7 @@ def signup(event, context):
     b3v = boto3.__version__
     body = '''<form method="post">
     Username: <input type="text" name="username" /> <br />
+    Email: <input type="text" name="email" /> <br />
     Password: <input type="password" name="password" /><br />
     <input type="submit" />
     </form>'''
@@ -237,7 +237,7 @@ def signupPost(event, context):
         UserAttributes=[
             {
                 'Name': 'email',
-                'Value': params.get('username')
+                'Value': params.get('email')
             },
         ],
         # ValidationData=[
